@@ -13,7 +13,7 @@ app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
-// 👇 这里就是你刚才不小心删掉的获取库位接口
+// 获取所有库位 (Read)
 app.get('/api/locations', (req, res) => {
   const rows = db.prepare('SELECT * FROM locations').all() as any[];
   const locations = rows.map(row => ({
@@ -21,6 +21,60 @@ app.get('/api/locations', (req, res) => {
     inventory: JSON.parse(row.inventory)
   }));
   res.json(locations);
+});
+
+// 新增库位 (Create)
+app.post('/api/locations', (req, res) => {
+  const { x, y, storageType, aisleId, direction, pickingPriority } = req.body;
+  const id = `LOC-${x}-${y}`;
+  const inventory = JSON.stringify({});
+
+  try {
+    const insert = db.prepare(`
+      INSERT INTO locations (id, x, y, storageType, aisleId, direction, pickingPriority, inventory)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    insert.run(id, x, y, storageType, aisleId, direction, pickingPriority, inventory);
+    res.json({ success: true, message: `库位 ${id} 创建成功` });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// 修改库位 (Update)
+app.put('/api/locations/:id', (req, res) => {
+  const { id } = req.params;
+  const { storageType, aisleId, direction, pickingPriority, inventory } = req.body;
+  
+  try {
+    const update = db.prepare(`
+      UPDATE locations 
+      SET storageType = COALESCE(?, storageType), 
+          aisleId = COALESCE(?, aisleId), 
+          direction = COALESCE(?, direction), 
+          pickingPriority = COALESCE(?, pickingPriority), 
+          inventory = COALESCE(?, inventory)
+      WHERE id = ?
+    `);
+    const invStr = inventory ? JSON.stringify(inventory) : null;
+    update.run(storageType, aisleId, direction, pickingPriority, invStr, id);
+    res.json({ success: true, message: `库位 ${id} 更新成功` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 删除库位 (Delete)
+app.delete('/api/locations/:id', (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const del = db.prepare('DELETE FROM locations WHERE id = ?');
+    del.run(id);
+    res.json({ success: true, message: `库位 ${id} 删除成功` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // 生成拣料单接口

@@ -29,12 +29,18 @@ export function getNeighbors(p: Point, grid: Map<string, Location>): Point[] {
     let canMove = false;
     
     if (currentLoc.storageType === 'FLOOR') {
-      if (targetLoc.storageType === 'RACK') {
-        // 进入高架区：必须从北进（如果是 SOUTH），或从南进（如果是 NORTH）
-        if (targetLoc.direction === 'NORTH_TO_SOUTH' && d.dy === 1) canMove = true;
-        if (targetLoc.direction === 'SOUTH_TO_NORTH' && d.dy === -1) canMove = true;
+      if (currentLoc.direction === 'BIDIRECTIONAL') {
+        // 如果当前是双向地堆，进入高架区必须遵守高架方向
+        if (targetLoc.storageType === 'RACK') {
+          if (targetLoc.direction === 'NORTH_TO_SOUTH' && d.dy === 1) canMove = true;
+          if (targetLoc.direction === 'SOUTH_TO_NORTH' && d.dy === -1) canMove = true;
+        } else {
+          canMove = true; 
+        }
       } else {
-        canMove = true; // 地堆自由进入地堆
+        // 如果 FLOOR 被配成了单向
+        if (currentLoc.direction === 'NORTH_TO_SOUTH' && d.dy === 1) canMove = true;
+        if (currentLoc.direction === 'SOUTH_TO_NORTH' && d.dy === -1) canMove = true;
       }
     } else if (currentLoc.storageType === 'RACK') {
       // 在高架区内：强制单向
