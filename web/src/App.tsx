@@ -11,14 +11,18 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/locations')
+    // 修改1：使用相对路径
+    fetch('/api/locations')
       .then(res => res.json())
-      .then(data => { setLocations(data); setLoading(false); });
+      .then(data => { setLocations(data); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
   const handleAllocate = async () => {
     setResult(null); setAnimStep(0); setIsPlaying(false);
-    const res = await fetch('http://localhost:3001/api/orders/allocate', {
+    
+    // 修改2：使用相对路径
+    const res = await fetch('/api/orders/allocate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: [{ sku: 'SKU_A', qty: qtyA }] })
