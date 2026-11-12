@@ -5,13 +5,9 @@ export interface Location {
 
 const GRID_SIZE = 10;
 
-// 获取当前格子可以走的下一步（核心：单行道硬性约束）
 export function getNeighbors(p: Point, grid: Map<string, Location>): Point[] {
   const dirs = [
-    { dx: 0, dy: -1 }, // 北
-    { dx: 0, dy: 1 },  // 南
-    { dx: -1, dy: 0 }, // 西
-    { dx: 1, dy: 0 },  // 东
+    { dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
   ];
   
   const neighbors: Point[] = [];
@@ -30,7 +26,6 @@ export function getNeighbors(p: Point, grid: Map<string, Location>): Point[] {
     
     if (currentLoc.storageType === 'FLOOR') {
       if (currentLoc.direction === 'BIDIRECTIONAL') {
-        // 如果当前是双向地堆，进入高架区必须遵守高架方向
         if (targetLoc.storageType === 'RACK') {
           if (targetLoc.direction === 'NORTH_TO_SOUTH' && d.dy === 1) canMove = true;
           if (targetLoc.direction === 'SOUTH_TO_NORTH' && d.dy === -1) canMove = true;
@@ -38,12 +33,10 @@ export function getNeighbors(p: Point, grid: Map<string, Location>): Point[] {
           canMove = true; 
         }
       } else {
-        // 如果 FLOOR 被配成了单向
         if (currentLoc.direction === 'NORTH_TO_SOUTH' && d.dy === 1) canMove = true;
         if (currentLoc.direction === 'SOUTH_TO_NORTH' && d.dy === -1) canMove = true;
       }
     } else if (currentLoc.storageType === 'RACK') {
-      // 在高架区内：强制单向
       if (currentLoc.direction === 'NORTH_TO_SOUTH' && d.dy === 1) canMove = true;
       if (currentLoc.direction === 'SOUTH_TO_NORTH' && d.dy === -1) canMove = true;
     }
@@ -53,7 +46,6 @@ export function getNeighbors(p: Point, grid: Map<string, Location>): Point[] {
   return neighbors;
 }
 
-// 广度优先搜索找两点间最短路径
 export function findShortestPath(start: Point, end: Point, grid: Map<string, Location>): Point[] | null {
   const queue: Point[] = [start];
   const visited = new Set<string>();
@@ -82,10 +74,9 @@ export function findShortestPath(start: Point, end: Point, grid: Map<string, Loc
       }
     }
   }
-  return null; // 不可达
+  return null;
 }
 
-// TSP 路径优化（状态压缩 DP，解决访问所有库位并回到起点）
 export function optimizeRoute(start: Point, stops: Point[], grid: Map<string, Location>) {
   const uniqueStops = stops.filter((s, i, self) => self.findIndex(t => t.x === s.x && t.y === s.y) === i);
   const m = uniqueStops.length;
@@ -96,7 +87,6 @@ export function optimizeRoute(start: Point, stops: Point[], grid: Map<string, Lo
   const pathMatrix: number[][] = Array(n).fill(null).map(() => Array(n).fill(Infinity));
   const segmentMatrix: (Point[] | null)[][] = Array(n).fill(null).map(() => Array(n).fill(null));
   
-  // 预计算所有两点间的距离
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
       if (i === j) { pathMatrix[i][j] = 0; continue; }
@@ -108,6 +98,44 @@ export function optimizeRoute(start: Point, stops: Point[], grid: Map<string, Lo
     }
   }
 
+  // 熔断降级：超过 15 个点使用贪心算法
+  if (m > 15) {
+    let curr = 0;
+    const visited = new Set<number>([0]);
+    const orderStops: number[] = [];
+    let totalDistance = 0;
+
+    for (let step = 0; step < m; step++) {
+      let nextNode = -1;
+      let minDist = Infinity;
+      for (let i = 1; i <= m; i++) {
+        if (!visited.has(i) && pathMatrix[curr][i] < minDist) {
+          minDist = pathMatrix[curr][i];
+          nextNode = i;
+        }
+      }
+      if (nextNode === -1) break;
+      visited.add(nextNode);
+      orderStops.push(nextNode);
+      totalDistance += minDist;
+      curr = nextNode;
+    }
+    totalDistance += pathMatrix[curr][0];
+
+    const detailedPath: Point[] = [];
+    let currPointIdx = 0;
+    for (const stopIdx of orderStops) {
+      const seg = segmentMatrix[currPointIdx][stopIdx]!;
+      detailedPath.push(...(detailedPath.length > 0 ? seg.slice(1) : seg));
+      currPointIdx = stopIdx;
+    }
+    const returnSeg = segmentMatrix[currPointIdx][0]!;
+    detailedPath.push(...returnSeg.slice(1));
+
+    return { totalDistance, detailedPath, orderStops: orderStops.map(i => points[i]), algorithm: 'Greedy' };
+  }
+
+  // 状态压缩 DP
   const dp: { dist: number, prev: number }[][] = Array(1 << m).fill(null).map(() => Array(m).fill(null).map(() => ({ dist: Infinity, prev: -1 })));
   
   for (let i = 0; i < m; i++) {
@@ -161,9 +189,5 @@ export function optimizeRoute(start: Point, stops: Point[], grid: Map<string, Lo
   const returnSeg = segmentMatrix[currPointIdx][0]!;
   detailedPath.push(...returnSeg.slice(1));
   
-  return {
-    totalDistance: minTotalDist,
-    detailedPath,
-    orderStops: orderStops.map(i => points[i + 1])
-  };
+  return { totalDistance: minTotalDist, detailedPath, orderStops: orderStops.map(i => points[i + 1]), algorithm: 'DP' };
 }

@@ -31,7 +31,6 @@ if (countRow.count === 0) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  // node:sqlite 手动事务包裹，提升插入性能
   db.exec('BEGIN');
   try {
     for (let x = 0; x < 10; x++) {
@@ -41,8 +40,8 @@ if (countRow.count === 0) {
         let pickingPriority = 10;
         let aisleId = null;
         
-        // 模拟一条南北向的高架巷道 (x=4)
-        if (x === 4) {
+        // 模拟一条南北向的高架巷道 (x=4)，首尾留出通道以便绕行
+        if (x === 4 && y > 0 && y < 9) {
           storageType = 'RACK';
           direction = 'NORTH_TO_SOUTH';
           pickingPriority = 5;
